@@ -1,0 +1,14 @@
+{
+  "operationType": "read",
+  "databaseType": "ImmuDB",
+  "success": true,
+  "errorMessage": "",
+  "itemsProcessed": 1000,
+  "totalDurationNs": 2090236145,
+  "avgOperationDurationNs": 2090236,
+  "throughput": 478.41,
+  "metrics": {
+    "verifiedReads": 1000
+  },
+  "timestamp": "2023-06-15T10:45:30Z"
+} 

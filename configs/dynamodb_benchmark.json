@@ -1,0 +1,160 @@
+{
+  "id": "dynamodb_benchmark",
+  "name": "DynamoDB Performance Benchmark",
+  "description": "A comprehensive benchmark for AWS DynamoDB focusing on NoSQL database operations",
+  "tests": [
+    {
+      "id": "dynamodb_write_test",
+      "name": "DynamoDB Write Test",
+      "description": "Test write operations for DynamoDB",
+      "database": {
+        "type": "dynamodb",
+        "config": {
+          "region": "us-east-1",
+          "tableName": "Transactions",
+          "endpoint": "http://dynamodb:8000"
+        }
+      },
+      "operation": {
+        "type": "write",
+        "count": 200,
+        "data": {
+          "size": 1024,
+          "useRandomIds": true
+        }
+      }
+    },
+    {
+      "id": "dynamodb_batch_write_test",
+      "name": "DynamoDB Batch Write Test",
+      "description": "Test batch write operations for DynamoDB",
+      "database": {
+        "type": "dynamodb",
+        "config": {
+          "region": "us-east-1",
+          "tableName": "Transactions",
+          "endpoint": "http://dynamodb:8000"
+        }
+      },
+      "operation": {
+        "type": "batch-write",
+        "count": 500,
+        "batchSize": 25,
+        "data": {
+          "size": 1024,
+          "useRandomIds": true
+        }
+      }
+    },
+    {
+      "id": "dynamodb_read_test",
+      "name": "DynamoDB Read Test",
+      "description": "Test read operations for DynamoDB",
+      "database": {
+        "type": "dynamodb",
+        "config": {
+          "region": "us-east-1",
+          "tableName": "Transactions",
+          "endpoint": "http://dynamodb:8000"
+        }
+      },
+      "operation": {
+        "type": "read",
+        "count": 100,
+        "data": {
+          "accountId": "account-123",
+          "uuids": ["uuid-1", "uuid-2", "uuid-3", "uuid-4", "uuid-5"]
+        }
+      }
+    },
+    {
+      "id": "dynamodb_parallel_read_test",
+      "name": "DynamoDB Parallel Read Test",
+      "description": "Test parallel read operations for DynamoDB",
+      "database": {
+        "type": "dynamodb",
+        "config": {
+          "region": "us-east-1",
+          "tableName": "Transactions",
+          "endpoint": "http://dynamodb:8000"
+        }
+      },
+      "operation": {
+        "type": "read-parallel",
+        "count": 100,
+        "concurrency": 10,
+        "data": {
+          "accountId": "account-123",
+          "uuids": ["uuid-1", "uuid-2", "uuid-3", "uuid-4", "uuid-5"]
+        }
+      }
+    },
+    {
+      "id": "dynamodb_query_test",
+      "name": "DynamoDB Query Test",
+      "description": "Test query operations for DynamoDB",
+      "database": {
+        "type": "dynamodb",
+        "config": {
+          "region": "us-east-1",
+          "tableName": "Transactions",
+          "endpoint": "http://dynamodb:8000"
+        }
+      },
+      "operation": {
+        "type": "query",
+        "count": 50,
+        "data": {
+          "accountId": "account-123",
+          "limit": 20,
+          "scanIndexForward": true
+        }
+      }
+    },
+    {
+      "id": "dynamodb_time_range_query_test",
+      "name": "DynamoDB Time Range Query Test",
+      "description": "Test time range query operations for DynamoDB",
+      "database": {
+        "type": "dynamodb",
+        "config": {
+          "region": "us-east-1",
+          "tableName": "Transactions",
+          "endpoint": "http://dynamodb:8000"
+        }
+      },
+      "operation": {
+        "type": "time-range-query",
+        "count": 30,
+        "data": {
+          "accountId": "account-123",
+          "startTime": "2023-01-01T00:00:00Z",
+          "endTime": "2023-12-31T23:59:59Z",
+          "limit": 100
+        }
+      }
+    },
+    {
+      "id": "dynamodb_conditional_write_test",
+      "name": "DynamoDB Conditional Write Test",
+      "description": "Test conditional write operations for DynamoDB",
+      "database": {
+        "type": "dynamodb",
+        "config": {
+          "region": "us-east-1",
+          "tableName": "Transactions",
+          "endpoint": "http://dynamodb:8000"
+        }
+      },
+      "operation": {
+        "type": "conditional-write",
+        "count": 50,
+        "data": {
+          "size": 1024,
+          "useRandomIds": true,
+          "condition": "attribute_not_exists(uuid)"
+        }
+      }
+    }
+  ]
+} 

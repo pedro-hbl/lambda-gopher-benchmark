@@ -1,0 +1,26 @@
+FROM golang:1.21-alpine as builder
+
+WORKDIR /app
+
+# Copy go.mod and go.sum
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the setup app
+RUN go build -o /app/timestream-setup ./tools/timestream-setup/main.go
+
+# Create lightweight runtime container
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /app
+
+# Copy the built executable
+COPY --from=builder /app/timestream-setup /app/timestream-setup
+
+# Run the setup app
+CMD ["/app/timestream-setup"] 

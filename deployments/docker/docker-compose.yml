@@ -1,0 +1,224 @@
+version: '3.8'
+
+services:
+  # Local DynamoDB instance for testing
+  dynamodb-local:
+    image: amazon/dynamodb-local
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+    networks:
+      - benchmark-network
+
+  # DynamoDB admin UI
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin
+    environment:
+      - DYNAMO_ENDPOINT=http://dynamodb-local:8000
+    ports:
+      - "8001:8001"
+    depends_on:
+      - dynamodb-local
+    networks:
+      - benchmark-network
+
+  # ImmuDB for testing
+  immudb:
+    image: codenotary/immudb:latest
+    container_name: immudb
+    restart: always
+    ports:
+      - "3322:3322"
+      - "9497:9497"
+    environment:
+      - IMMUDB_ADDRESS=0.0.0.0
+      - IMMUDB_PORT=3322
+      - IMMUDB_METRICS_PORT=9497
+      - IMMUDB_ADMIN_PASSWORD=immudb
+      - IMMUDB_AUTH=true
+    volumes:
+      - immudb-data:/var/lib/immudb
+    healthcheck:
+      test: ["CMD", "immuadmin", "status", "--admin-password=immudb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - benchmark-network
+
+  # Unified benchmark Lambda function - DynamoDB tests
+  lambda-benchmark-dynamodb:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.lambda
+    environment:
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+      - DB_ENDPOINT=http://dynamodb-local:8000
+      - DB_TABLE_NAME=Transactions
+    ports:
+      - "9000:8080"
+    depends_on:
+      - dynamodb-local
+      - dynamodb-setup
+    networks:
+      - benchmark-network
+
+  # Unified benchmark Lambda function - ImmuDB tests
+  lambda-benchmark-immudb:
+    image: lambda-benchmark:latest
+    container_name: lambda-benchmark-immudb
+    depends_on:
+      immudb-setup:
+        condition: service_completed_successfully
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.lambda
+    environment:
+      - AWS_REGION=us-east-1
+      - DB_TYPE=immudb
+      - DB_ADDRESS=immudb
+      - DB_PORT=3322
+      - DB_USERNAME=immudb
+      - DB_PASSWORD=immudb
+      - DB_NAME=defaultdb
+      - DB_TABLE_NAME=Transactions
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+    networks:
+      - benchmark-network
+
+  # DynamoDB table setup
+  dynamodb-setup:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.setup
+    environment:
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - DB_TABLE_NAME=Transactions
+    depends_on:
+      - dynamodb-local
+    networks:
+      - benchmark-network
+    command: ["dynamodb"]
+
+  # ImmuDB setup
+  immudb-setup:
+    image: codenotary/immudb:latest
+    container_name: immudb-setup
+    depends_on:
+      immudb:
+        condition: service_healthy
+    volumes:
+      - ../../scripts/setup:/setup
+    command: ["/bin/bash", "/setup/immudb.sh"]
+    environment:
+      - IMMUDB_ADDRESS=immudb
+      - IMMUDB_PORT=3322
+      - IMMUDB_USERNAME=immudb
+      - IMMUDB_PASSWORD=immudb
+      - DB_NAME=defaultdb
+      - DB_TABLE_NAME=Transactions
+    networks:
+      - benchmark-network
+
+  # Benchmark runner - executes and collects benchmark results
+  benchmark-runner:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.runner
+    environment:
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+      - LAMBDA_ENDPOINT=http://lambda-benchmark-dynamodb:8080
+      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - RESULTS_DIR=/results
+    volumes:
+      - ../../results:/results
+    depends_on:
+      - dynamodb-local
+      - lambda-benchmark-dynamodb
+    networks:
+      - benchmark-network
+    command: ["run", "--database=dynamodb", "--operations=read-sequential,read-parallel,write,write-batch,query", "--verbose"]
+
+  # Timestream
+  # Using localstack as a proxy for Timestream since AWS doesn't provide a local emulator for Timestream
+  localstack:
+    image: localstack/localstack:2.3.0
+    container_name: lambda-benchmark-timestream
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=timestream
+      - DEBUG=1
+      - PERSISTENCE=1
+      - AWS_DEFAULT_REGION=us-east-1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - localstack-data:/tmp/localstack
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - benchmark-network
+
+  # Timestream Setup
+  timestream-setup:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.setup-timestream
+    container_name: timestream-setup
+    environment:
+      - TIMESTREAM_ENDPOINT=http://localstack:4566
+      - AWS_REGION=us-east-1
+      - DB_DATABASE_NAME=BenchmarkDB
+      - DB_TABLE_NAME=Transactions
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+    depends_on:
+      localstack:
+        condition: service_healthy
+    networks:
+      - benchmark-network
+
+  # Lambda Benchmark for Timestream
+  lambda-benchmark-timestream:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.lambda
+    container_name: lambda-benchmark-timestream
+    environment:
+      - AWS_REGION=us-east-1
+      - DB_TYPE=timestream
+      - TIMESTREAM_ENDPOINT=http://localstack:4566
+      - DB_DATABASE_NAME=BenchmarkDB
+      - DB_TABLE_NAME=Transactions
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+    depends_on:
+      - timestream-setup
+    networks:
+      - benchmark-network
+
+networks:
+  benchmark-network:
+    driver: bridge
+
+volumes:
+  immudb-data:
+  dynamodb-data:
+  localstack-data: 

@@ -1,0 +1,14 @@
+{
+  "operationType": "read",
+  "databaseType": "Timestream",
+  "success": true,
+  "errorMessage": "",
+  "itemsProcessed": 1000,
+  "totalDurationNs": 2387267492,
+  "avgOperationDurationNs": 2387267,
+  "throughput": 418.89,
+  "metrics": {
+    "bytesScanned": 125000
+  },
+  "timestamp": "2023-06-15T10:55:12Z"
+} 

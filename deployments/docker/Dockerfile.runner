@@ -1,0 +1,48 @@
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+RUN apk add --no-cache git
+
+# Copy go.mod and go.sum
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy the source code
+COPY . .
+
+# Build the runner tool
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o /runner ./cmd/runner
+
+# Final stage
+FROM alpine:3.18
+
+# Install AWS CLI and other utilities
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    curl \
+    jq \
+    && pip3 install --no-cache-dir awscli
+
+# Copy the runner binary
+COPY --from=builder /runner /usr/local/bin/runner
+
+# Make the binary executable
+RUN chmod +x /usr/local/bin/runner
+
+# Create results directory
+RUN mkdir -p /results
+
+# Set working directory
+WORKDIR /results
+
+# Set the entrypoint
+ENTRYPOINT ["/usr/local/bin/runner"]
+
+# Default command (run all benchmarks)
+CMD ["run", "--all"] 

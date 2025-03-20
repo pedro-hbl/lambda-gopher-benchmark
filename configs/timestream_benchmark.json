@@ -1,0 +1,166 @@
+{
+  "id": "timestream_benchmark",
+  "name": "Timestream Performance Benchmark",
+  "description": "A comprehensive benchmark for AWS Timestream focusing on time-series data operations",
+  "tests": [
+    {
+      "id": "timestream_write_test",
+      "name": "Timestream Write Test",
+      "description": "Test write operations for time-series data in Timestream",
+      "database": {
+        "type": "timestream",
+        "config": {
+          "region": "us-east-1",
+          "databaseName": "BenchmarkDB",
+          "tableName": "Transactions",
+          "endpoint": "http://localstack:4566"
+        }
+      },
+      "operation": {
+        "type": "write",
+        "count": 200,
+        "data": {
+          "size": 1024,
+          "useRandomIds": true
+        }
+      }
+    },
+    {
+      "id": "timestream_batch_write_test",
+      "name": "Timestream Batch Write Test",
+      "description": "Test batch write operations for time-series data in Timestream",
+      "database": {
+        "type": "timestream",
+        "config": {
+          "region": "us-east-1",
+          "databaseName": "BenchmarkDB",
+          "tableName": "Transactions",
+          "endpoint": "http://localstack:4566"
+        }
+      },
+      "operation": {
+        "type": "batch-write",
+        "count": 500,
+        "batchSize": 25,
+        "data": {
+          "size": 1024,
+          "useRandomIds": true
+        }
+      }
+    },
+    {
+      "id": "timestream_read_test",
+      "name": "Timestream Read Test",
+      "description": "Test read operations for specific data points in Timestream",
+      "database": {
+        "type": "timestream",
+        "config": {
+          "region": "us-east-1",
+          "databaseName": "BenchmarkDB",
+          "tableName": "Transactions",
+          "endpoint": "http://localstack:4566"
+        }
+      },
+      "operation": {
+        "type": "read",
+        "count": 100,
+        "data": {
+          "accountId": "account-123",
+          "uuids": ["uuid-1", "uuid-2", "uuid-3", "uuid-4", "uuid-5"]
+        }
+      }
+    },
+    {
+      "id": "timestream_query_test",
+      "name": "Timestream Query Test",
+      "description": "Test query operations for account-based data in Timestream",
+      "database": {
+        "type": "timestream",
+        "config": {
+          "region": "us-east-1",
+          "databaseName": "BenchmarkDB",
+          "tableName": "Transactions",
+          "endpoint": "http://localstack:4566"
+        }
+      },
+      "operation": {
+        "type": "query",
+        "count": 50,
+        "data": {
+          "accountId": "account-123",
+          "limit": 20,
+          "scanIndexForward": true
+        }
+      }
+    },
+    {
+      "id": "timestream_time_range_query_test",
+      "name": "Timestream Time Range Query Test",
+      "description": "Test time range query operations optimized for Timestream's time-series capabilities",
+      "database": {
+        "type": "timestream",
+        "config": {
+          "region": "us-east-1",
+          "databaseName": "BenchmarkDB",
+          "tableName": "Transactions",
+          "endpoint": "http://localstack:4566"
+        }
+      },
+      "operation": {
+        "type": "time-range-query",
+        "count": 30,
+        "data": {
+          "accountId": "account-123",
+          "startTime": "2023-01-01T00:00:00Z",
+          "endTime": "2023-12-31T23:59:59Z",
+          "limit": 100
+        }
+      }
+    },
+    {
+      "id": "timestream_high_precision_time_range_query",
+      "name": "Timestream High Precision Time Range Query",
+      "description": "Test Timestream's ability to handle high-precision time range queries",
+      "database": {
+        "type": "timestream",
+        "config": {
+          "region": "us-east-1",
+          "databaseName": "BenchmarkDB",
+          "tableName": "Transactions",
+          "endpoint": "http://localstack:4566"
+        }
+      },
+      "operation": {
+        "type": "time-range-query",
+        "count": 20,
+        "data": {
+          "accountId": "account-123",
+          "startTime": "2023-06-01T12:00:00.000000Z",
+          "endTime": "2023-06-01T12:01:00.000000Z",
+          "limit": 50
+        }
+      }
+    },
+    {
+      "id": "timestream_aggregation_query",
+      "name": "Timestream Aggregation Query",
+      "description": "Test Timestream's aggregation capabilities",
+      "database": {
+        "type": "timestream",
+        "config": {
+          "region": "us-east-1",
+          "databaseName": "BenchmarkDB",
+          "tableName": "Transactions",
+          "endpoint": "http://localstack:4566"
+        }
+      },
+      "operation": {
+        "type": "custom-query",
+        "count": 15,
+        "data": {
+          "query": "SELECT account_id, AVG(measure_value::double) as avg_amount, MAX(measure_value::double) as max_amount, MIN(measure_value::double) as min_amount FROM \"BenchmarkDB\".\"Transactions\" WHERE account_id = 'account-123' GROUP BY account_id"
+        }
+      }
+    }
+  ]
+} 

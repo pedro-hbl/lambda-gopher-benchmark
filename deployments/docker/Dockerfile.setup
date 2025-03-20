@@ -1,0 +1,45 @@
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+RUN apk add --no-cache git
+
+# Copy go.mod and go.sum
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy the source code
+COPY . .
+
+# Build the setup script
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o /setup ./scripts/setup
+
+# Final stage
+FROM alpine:3.18
+
+# Install AWS CLI and other utilities
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    curl \
+    jq \
+    && pip3 install --no-cache-dir awscli
+
+# Copy the setup binary
+COPY --from=builder /setup /usr/local/bin/setup
+
+# Make the binary executable
+RUN chmod +x /usr/local/bin/setup
+
+# Copy setup scripts
+COPY scripts/setup/ /scripts/
+
+# Set the entrypoint
+ENTRYPOINT ["/usr/local/bin/setup"]
+
+# Default command (setup all databases)
+CMD ["all"] 

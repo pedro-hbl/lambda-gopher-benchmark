@@ -1,0 +1,14 @@
+{
+  "operationType": "write",
+  "databaseType": "Timestream",
+  "success": true,
+  "errorMessage": "",
+  "itemsProcessed": 1000,
+  "totalDurationNs": 3305785124,
+  "avgOperationDurationNs": 3305785,
+  "throughput": 302.5,
+  "metrics": {
+    "recordsIngested": 1000
+  },
+  "timestamp": "2023-06-15T10:50:45Z"
+} 

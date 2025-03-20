@@ -1,0 +1,14 @@
+{
+  "operationType": "read",
+  "databaseType": "DynamoDB",
+  "success": true,
+  "errorMessage": "",
+  "itemsProcessed": 1000,
+  "totalDurationNs": 2856782154,
+  "avgOperationDurationNs": 2856782,
+  "throughput": 350.05,
+  "metrics": {
+    "consumedCapacityUnits": 500
+  },
+  "timestamp": "2023-06-15T10:35:22Z"
+} 

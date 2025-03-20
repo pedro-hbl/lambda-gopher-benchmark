@@ -1,0 +1,15 @@
+{
+  "operationType": "batch_write",
+  "databaseType": "DynamoDB",
+  "success": true,
+  "errorMessage": "",
+  "itemsProcessed": 5000,
+  "totalDurationNs": 2642340526,
+  "avgOperationDurationNs": 528468,
+  "throughput": 1892.34,
+  "metrics": {
+    "consumedCapacityUnits": 5000,
+    "batchSize": 25
+  },
+  "timestamp": "2023-06-15T11:00:33Z"
+} 
