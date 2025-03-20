@@ -333,6 +333,7 @@ func runBenchmarkFromConfigFile(filePath string) {
 	log.Printf("Completed all tests for benchmark: %s", benchmarkDef.ID)
 }
 
+// TODO: This function is not currently used directly but kept for future implementation of standalone benchmark runs
 func runBenchmark(dbType, opType string, customParams map[string]interface{}) {
 	// Get database-specific endpoint if available
 	endpoint := *lambdaEndpoint

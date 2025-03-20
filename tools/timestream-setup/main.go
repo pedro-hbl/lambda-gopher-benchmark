@@ -146,6 +146,7 @@ func getEnv(key, defaultValue string) string {
 }
 
 // retry retries a function with exponential backoff
+// TODO: This function is not currently used but kept for future implementation of retry logic
 func retry(attempts int, sleep time.Duration, f func() error) error {
 	if err := f(); err != nil {
 		if attempts--; attempts > 0 {

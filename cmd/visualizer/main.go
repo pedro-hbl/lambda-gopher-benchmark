@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/wcharczuk/go-chart/v2"
+	chart "github.com/wcharczuk/go-chart/v2"
 	"github.com/wcharczuk/go-chart/v2/drawing"
 )
 
@@ -291,17 +291,18 @@ func shouldIncludeResult(result BenchmarkResult, filterOpts FilterOptions) bool 
 
 // generateTextSummary generates a text summary of the benchmark results
 func generateTextSummary(collection ResultsCollection, opts OutputOptions) {
-	fmt.Println("\n=== Benchmark Results Summary ===")
-
 	// Group results by database or operation
 	groupedResults := groupResults(collection, opts.GroupBy)
 
-	// Create a table
 	table := tablewriter.NewWriter(os.Stdout)
+
+	// Declare headers and rows at the function scope level
+	var headers []string
+	var rows [][]string
 
 	// Set header based on grouping
 	if opts.GroupBy == "database" {
-		headers := []string{"Database"}
+		headers = []string{"Database"}
 		for _, op := range collection.OperationTypes {
 			if opts.MetricType == "throughput" {
 				headers = append(headers, fmt.Sprintf("%s (ops/sec)", op))
@@ -311,7 +312,7 @@ func generateTextSummary(collection ResultsCollection, opts OutputOptions) {
 		}
 		table.SetHeader(headers)
 	} else {
-		headers := []string{"Operation"}
+		headers = []string{"Operation"}
 		for _, db := range collection.DatabaseTypes {
 			if opts.MetricType == "throughput" {
 				headers = append(headers, fmt.Sprintf("%s (ops/sec)", db))
@@ -348,6 +349,7 @@ func generateTextSummary(collection ResultsCollection, opts OutputOptions) {
 		}
 
 		table.Append(row)
+		rows = append(rows, row) // Store rows for later use
 	}
 
 	table.Render()
@@ -361,11 +363,22 @@ func generateTextSummary(collection ResultsCollection, opts OutputOptions) {
 	}
 	defer file.Close()
 
-	tableString := table.RenderFormat(tablewriter.FormatMarkdown)
+	// Instead of RenderFormat which doesn't exist, we'll capture the output manually
+	var tableString strings.Builder
+
+	// Create a new table for the file output
+	fileTable := tablewriter.NewWriter(&tableString)
+	fileTable.SetHeader(headers)
+	fileTable.SetBorder(true)
+	for _, row := range rows {
+		fileTable.Append(row)
+	}
+	fileTable.Render()
+
 	file.WriteString("# Benchmark Results Summary\n\n")
 	file.WriteString(fmt.Sprintf("Grouped by: %s\n", opts.GroupBy))
 	file.WriteString(fmt.Sprintf("Metric: %s\n\n", opts.MetricType))
-	file.WriteString(tableString)
+	file.WriteString(tableString.String())
 
 	fmt.Printf("Text summary saved to: %s\n", outputFile)
 }
@@ -677,10 +690,12 @@ func generateComparisonChart(collection ResultsCollection, opts OutputOptions) {
 			}
 		}
 
-		series = append(series, chart.BarSeries{
-			Name:  dbType,
-			Bars:  bars,
-			Style: chart.Style{FillColor: colors[colorIndex]},
+		// Fix the BarSeries type by using BarChart
+		series = append(series, chart.ContinuousSeries{
+			Name:    dbType,
+			XValues: generateXValues(len(bars)),
+			YValues: extractYValues(bars),
+			Style:   chart.Style{FillColor: colors[colorIndex]},
 		})
 
 		colorIndex++
@@ -757,4 +772,21 @@ func groupResults(collection ResultsCollection, groupBy string) map[string]map[s
 	}
 
 	return groupedResults
+}
+
+// Helper functions to extract values for chart
+func generateXValues(count int) []float64 {
+	xvalues := make([]float64, count)
+	for i := 0; i < count; i++ {
+		xvalues[i] = float64(i)
+	}
+	return xvalues
+}
+
+func extractYValues(bars []chart.Value) []float64 {
+	yvalues := make([]float64, len(bars))
+	for i, bar := range bars {
+		yvalues[i] = bar.Value
+	}
+	return yvalues
 }
