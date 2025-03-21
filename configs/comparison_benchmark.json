@@ -1,7 +1,7 @@
 {
-  "id": "db_comparison_benchmark",
-  "name": "Database Comparison Benchmark",
-  "description": "A comprehensive benchmark comparing the performance of DynamoDB, ImmuDB, and Timestream across various operations",
+  "id": "db_comparison_benchmark_aws",
+  "name": "AWS Database Comparison Benchmark",
+  "description": "A comprehensive benchmark comparing the performance of DynamoDB, ImmuDB, and Timestream in AWS",
   "tests": [
     {
       "id": "dynamodb_write_test",
@@ -11,8 +11,7 @@
         "type": "dynamodb",
         "config": {
           "region": "us-east-1",
-          "tableName": "Transactions",
-          "endpoint": "http://dynamodb:8000"
+          "tableName": "Transactions"
         }
       },
       "operation": {
@@ -31,9 +30,9 @@
       "database": {
         "type": "immudb",
         "config": {
-          "address": "immudb",
+          "address": "${IMMUDB_ADDRESS}",
           "port": 3322,
-          "databaseName": "benchmark",
+          "database": "benchmark",
           "tableName": "transactions"
         }
       },
@@ -54,9 +53,8 @@
         "type": "timestream",
         "config": {
           "region": "us-east-1",
-          "databaseName": "BenchmarkDB",
-          "tableName": "Transactions",
-          "endpoint": "http://localstack:4566"
+          "databaseName": "TransactionsDB",
+          "tableName": "Transactions"
         }
       },
       "operation": {
@@ -76,8 +74,7 @@
         "type": "dynamodb",
         "config": {
           "region": "us-east-1",
-          "tableName": "Transactions",
-          "endpoint": "http://dynamodb:8000"
+          "tableName": "Transactions"
         }
       },
       "operation": {
@@ -97,9 +94,9 @@
       "database": {
         "type": "immudb",
         "config": {
-          "address": "immudb",
+          "address": "${IMMUDB_ADDRESS}",
           "port": 3322,
-          "databaseName": "benchmark",
+          "database": "benchmark",
           "tableName": "transactions"
         }
       },
@@ -121,9 +118,8 @@
         "type": "timestream",
         "config": {
           "region": "us-east-1",
-          "databaseName": "BenchmarkDB",
-          "tableName": "Transactions",
-          "endpoint": "http://localstack:4566"
+          "databaseName": "TransactionsDB",
+          "tableName": "Transactions"
         }
       },
       "operation": {
@@ -144,8 +140,7 @@
         "type": "dynamodb",
         "config": {
           "region": "us-east-1",
-          "tableName": "Transactions",
-          "endpoint": "http://dynamodb:8000"
+          "tableName": "Transactions"
         }
       },
       "operation": {
@@ -164,9 +159,9 @@
       "database": {
         "type": "immudb",
         "config": {
-          "address": "immudb",
+          "address": "${IMMUDB_ADDRESS}",
           "port": 3322,
-          "databaseName": "benchmark",
+          "database": "benchmark",
           "tableName": "transactions"
         }
       },
@@ -187,82 +182,13 @@
         "type": "timestream",
         "config": {
           "region": "us-east-1",
-          "databaseName": "BenchmarkDB",
-          "tableName": "Transactions",
-          "endpoint": "http://localstack:4566"
+          "databaseName": "TransactionsDB",
+          "tableName": "Transactions"
         }
       },
       "operation": {
         "type": "read",
         "count": 100,
-        "data": {
-          "accountId": "account-123",
-          "uuids": ["uuid-1", "uuid-2", "uuid-3", "uuid-4", "uuid-5"]
-        }
-      }
-    },
-    {
-      "id": "dynamodb_parallel_read_test",
-      "name": "DynamoDB Parallel Read Test",
-      "description": "Test parallel read operations for DynamoDB",
-      "database": {
-        "type": "dynamodb",
-        "config": {
-          "region": "us-east-1",
-          "tableName": "Transactions",
-          "endpoint": "http://dynamodb:8000"
-        }
-      },
-      "operation": {
-        "type": "read-parallel",
-        "count": 100,
-        "concurrency": 10,
-        "data": {
-          "accountId": "account-123",
-          "uuids": ["uuid-1", "uuid-2", "uuid-3", "uuid-4", "uuid-5"]
-        }
-      }
-    },
-    {
-      "id": "immudb_parallel_read_test",
-      "name": "ImmuDB Parallel Read Test",
-      "description": "Test parallel read operations for ImmuDB",
-      "database": {
-        "type": "immudb",
-        "config": {
-          "address": "immudb",
-          "port": 3322,
-          "databaseName": "benchmark",
-          "tableName": "transactions"
-        }
-      },
-      "operation": {
-        "type": "read-parallel",
-        "count": 100,
-        "concurrency": 10,
-        "data": {
-          "accountId": "account-123",
-          "uuids": ["uuid-1", "uuid-2", "uuid-3", "uuid-4", "uuid-5"]
-        }
-      }
-    },
-    {
-      "id": "timestream_parallel_read_test",
-      "name": "Timestream Parallel Read Test",
-      "description": "Test parallel read operations for Timestream",
-      "database": {
-        "type": "timestream",
-        "config": {
-          "region": "us-east-1",
-          "databaseName": "BenchmarkDB",
-          "tableName": "Transactions",
-          "endpoint": "http://localstack:4566"
-        }
-      },
-      "operation": {
-        "type": "read-parallel",
-        "count": 100,
-        "concurrency": 10,
         "data": {
           "accountId": "account-123",
           "uuids": ["uuid-1", "uuid-2", "uuid-3", "uuid-4", "uuid-5"]
@@ -277,8 +203,7 @@
         "type": "dynamodb",
         "config": {
           "region": "us-east-1",
-          "tableName": "Transactions",
-          "endpoint": "http://dynamodb:8000"
+          "tableName": "Transactions"
         }
       },
       "operation": {
@@ -298,9 +223,9 @@
       "database": {
         "type": "immudb",
         "config": {
-          "address": "immudb",
+          "address": "${IMMUDB_ADDRESS}",
           "port": 3322,
-          "databaseName": "benchmark",
+          "database": "benchmark",
           "tableName": "transactions"
         }
       },
@@ -322,9 +247,8 @@
         "type": "timestream",
         "config": {
           "region": "us-east-1",
-          "databaseName": "BenchmarkDB",
-          "tableName": "Transactions",
-          "endpoint": "http://localstack:4566"
+          "databaseName": "TransactionsDB",
+          "tableName": "Transactions"
         }
       },
       "operation": {

@@ -55,7 +55,10 @@ echo "All prerequisites are met!"
 
 # Build Lambda function
 section "Building Lambda Function"
-cd "$(dirname "$0")/.."  # Change to project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$ROOT_DIR"
+
 echo "Building Lambda function for Linux..."
 GOOS=linux GOARCH=amd64 go build -o bootstrap cmd/benchmark/main.go
 if [ ! -f bootstrap ]; then
@@ -72,7 +75,41 @@ echo "Lambda function built successfully!"
 
 # Deploy with Terraform
 section "Deploying Infrastructure with Terraform"
-cd deployments/terraform
+cd "$ROOT_DIR/deployments/terraform"
+
+# SSH Key Configuration
+section "SSH Key Configuration"
+echo "Do you want to configure SSH access to the ImmuDB EC2 instance?"
+echo "This allows you to connect to the EC2 instance directly for troubleshooting."
+echo "If you choose 'yes', provide the path to your public key file or paste the public key."
+echo "If you choose 'no', SSH access will be disabled."
+read -p "Configure SSH access? (yes/no): " configureSSH
+
+SSH_PUBLIC_KEY=""
+if [ "$configureSSH" = "yes" ]; then
+  read -p "Enter the path to your public key file or paste the public key content: " keyInput
+  
+  # Check if it's a file path
+  if [ -f "$keyInput" ]; then
+    SSH_PUBLIC_KEY=$(cat "$keyInput")
+    echo "Using public key from file: $keyInput"
+  else
+    SSH_PUBLIC_KEY="$keyInput"
+    echo "Using provided public key"
+  fi
+  
+  # Validate the key format (basic validation)
+  if [[ ! "$SSH_PUBLIC_KEY" =~ ^ssh-rsa[[:space:]]+[A-Za-z0-9+/=]+.* ]]; then
+    warning "The provided public key doesn't appear to be in the correct format."
+    read -p "Do you want to proceed anyway? (yes/no): " proceed
+    if [ "$proceed" != "yes" ]; then
+      SSH_PUBLIC_KEY=""
+      echo "SSH access will be disabled."
+    fi
+  fi
+else
+  echo "SSH access will be disabled."
+fi
 
 echo "Initializing Terraform..."
 terraform init
@@ -82,15 +119,16 @@ terraform plan \
   -var="aws_region=${AWS_REGION}" \
   -var="environment=${ENVIRONMENT}" \
   -var="dynamodb_read_capacity=${DYNAMODB_READ_CAPACITY}" \
-  -var="dynamodb_write_capacity=${DYNAMODB_WRITE_CAPACITY}"
+  -var="dynamodb_write_capacity=${DYNAMODB_WRITE_CAPACITY}" \
+  -var="ssh_public_key=${SSH_PUBLIC_KEY}"
 
 echo "Applying Terraform configuration..."
-terraform apply \
-  -auto-approve \
+terraform apply -auto-approve \
   -var="aws_region=${AWS_REGION}" \
   -var="environment=${ENVIRONMENT}" \
   -var="dynamodb_read_capacity=${DYNAMODB_READ_CAPACITY}" \
-  -var="dynamodb_write_capacity=${DYNAMODB_WRITE_CAPACITY}"
+  -var="dynamodb_write_capacity=${DYNAMODB_WRITE_CAPACITY}" \
+  -var="ssh_public_key=${SSH_PUBLIC_KEY}"
 
 if [ $? -ne 0 ]; then
   error "Terraform apply failed"

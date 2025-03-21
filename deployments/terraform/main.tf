@@ -86,6 +86,13 @@ resource "aws_iam_policy" "lambda_policy" {
         ],
         Effect   = "Allow",
         Resource = "*"
+      },
+      {
+        Action = [
+          "ec2:DescribeInstances"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
       }
     ]
   })
@@ -95,6 +102,191 @@ resource "aws_iam_policy" "lambda_policy" {
 resource "aws_iam_role_policy_attachment" "lambda_policy_attachment" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.lambda_policy.arn
+}
+
+# VPC for ImmuDB
+resource "aws_vpc" "immudb_vpc" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = {
+    Name    = "immudb-vpc"
+    Project = "lambda-gopher-benchmark"
+  }
+}
+
+# Subnet for ImmuDB
+resource "aws_subnet" "immudb_subnet" {
+  vpc_id                  = aws_vpc.immudb_vpc.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = true
+  availability_zone       = "${var.aws_region}a"
+
+  tags = {
+    Name    = "immudb-subnet"
+    Project = "lambda-gopher-benchmark"
+  }
+}
+
+# Internet Gateway
+resource "aws_internet_gateway" "immudb_igw" {
+  vpc_id = aws_vpc.immudb_vpc.id
+
+  tags = {
+    Name    = "immudb-igw"
+    Project = "lambda-gopher-benchmark"
+  }
+}
+
+# Route Table
+resource "aws_route_table" "immudb_route_table" {
+  vpc_id = aws_vpc.immudb_vpc.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.immudb_igw.id
+  }
+
+  tags = {
+    Name    = "immudb-route-table"
+    Project = "lambda-gopher-benchmark"
+  }
+}
+
+# Route Table Association
+resource "aws_route_table_association" "immudb_route_table_assoc" {
+  subnet_id      = aws_subnet.immudb_subnet.id
+  route_table_id = aws_route_table.immudb_route_table.id
+}
+
+# Security Group for ImmuDB
+resource "aws_security_group" "immudb_sg" {
+  name        = "immudb-security-group"
+  description = "Security group for ImmuDB EC2 instance"
+  vpc_id      = aws_vpc.immudb_vpc.id
+
+  # ImmuDB default ports
+  ingress {
+    from_port   = 3322
+    to_port     = 3322
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Allow from anywhere - in production limit this
+    description = "ImmuDB API port"
+  }
+
+  ingress {
+    from_port   = 9497
+    to_port     = 9497
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "ImmuDB metrics port"
+  }
+
+  # SSH access for management - only if SSH public key is provided
+  dynamic "ingress" {
+    for_each = var.ssh_public_key != "" ? [1] : []
+    content {
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]  # In production, restrict to your IP
+      description = "SSH access"
+    }
+  }
+
+  # Allow all outbound traffic
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow all outbound traffic"
+  }
+
+  tags = {
+    Name    = "immudb-sg"
+    Project = "lambda-gopher-benchmark"
+  }
+}
+
+# EC2 Key Pair - only created if an SSH public key is provided
+resource "aws_key_pair" "immudb_key_pair" {
+  count      = var.ssh_public_key != "" ? 1 : 0
+  key_name   = "immudb-key-pair-${var.environment}"
+  public_key = var.ssh_public_key
+
+  tags = {
+    Name    = "immudb-key-pair-${var.environment}"
+    Project = "lambda-gopher-benchmark"
+  }
+}
+
+# User data script to install and configure ImmuDB
+locals {
+  user_data = <<-EOF
+#!/bin/bash
+set -e
+
+# Update and install dependencies
+apt-get update
+apt-get install -y wget gnupg2 apt-transport-https ca-certificates
+
+# Install ImmuDB
+wget https://github.com/codenotary/immudb/releases/download/v1.9.5/immudb-v1.9.5-linux-amd64-installer.bin
+chmod +x immudb-v1.9.5-linux-amd64-installer.bin
+./immudb-v1.9.5-linux-amd64-installer.bin --non-interactive
+
+# Create benchmark database
+sleep 10 # Wait for ImmuDB to start
+immuadmin login immudb
+immuclient database create benchmark
+
+# Configure ImmuDB service to allow connections from anywhere
+cat > /etc/immudb/immudb.service << 'EOL'
+[Unit]
+Description=ImmuDB is a lightweight, high-speed immutable database
+Documentation=https://docs.immudb.io/
+After=network.target
+
+[Service]
+User=immudb
+Group=immudb
+ExecStart=/usr/local/bin/immudb --auth --port=3322 --address=0.0.0.0 --dir=/var/lib/immudb --metrics-port=9497 --pgsql-server=true --pgsql-server-port=5432 --pidfile=/var/lib/immudb/immudb.pid
+LimitNOFILE=10000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# Restart the service to apply new settings
+systemctl daemon-reload
+systemctl restart immudb
+
+echo "ImmuDB setup completed!"
+EOF
+}
+
+# EC2 Instance for ImmuDB
+resource "aws_instance" "immudb_instance" {
+  ami                    = var.ec2_ami_id # Amazon Linux 2 AMI, defined in variables.tf
+  instance_type          = "t2.micro"     # Free tier eligible
+  key_name               = var.ssh_public_key != "" ? aws_key_pair.immudb_key_pair[0].key_name : null
+  vpc_security_group_ids = [aws_security_group.immudb_sg.id]
+  subnet_id              = aws_subnet.immudb_subnet.id
+  user_data              = local.user_data
+
+  root_block_device {
+    volume_size = 20 # 20GB for ImmuDB data
+    volume_type = "gp2"
+  }
+
+  tags = {
+    Name    = "immudb-server"
+    Project = "lambda-gopher-benchmark"
+  }
 }
 
 # DynamoDB Table
@@ -176,7 +368,7 @@ resource "aws_s3_bucket" "lambda_bucket" {
 resource "aws_lambda_function" "benchmark_lambda" {
   for_each = {
     for pair in setproduct(
-      { for config_key, config in local.lambda_function_names : config_key => config if config.database_type != "immudb" },
+      local.lambda_function_names,
       var.lambda_memory_configurations
     ) : "${pair[0].key}_${pair[1]}" => {
       config      = pair[0].value
@@ -202,6 +394,9 @@ resource "aws_lambda_function" "benchmark_lambda" {
       DYNAMODB_TABLE    = each.value.config.database_type == "dynamodb" ? aws_dynamodb_table.transactions_table.name : ""
       TIMESTREAM_DATABASE = each.value.config.database_type == "timestream" ? aws_timestreamwrite_database.timestream_db.database_name : ""
       TIMESTREAM_TABLE  = each.value.config.database_type == "timestream" ? aws_timestreamwrite_table.timestream_table.table_name : ""
+      IMMUDB_ADDRESS    = each.value.config.database_type == "immudb" ? aws_instance.immudb_instance.public_ip : ""
+      IMMUDB_PORT       = "3322"
+      IMMUDB_DATABASE   = "benchmark"
       MEMORY_SIZE       = tostring(each.value.memory_size)
     }
   }
@@ -255,6 +450,17 @@ output "lambda_function_names" {
     for key, function in aws_lambda_function.benchmark_lambda : 
     key => function.function_name
   }
+}
+
+# Output the ImmuDB instance details
+output "immudb_instance_ip" {
+  description = "Public IP address of the ImmuDB EC2 instance"
+  value       = aws_instance.immudb_instance.public_ip
+}
+
+output "immudb_connection_string" {
+  description = "Connection string for ImmuDB"
+  value       = "immudb://${aws_instance.immudb_instance.public_ip}:3322"
 }
 
 # CloudWatch Dashboard for metrics visualization
