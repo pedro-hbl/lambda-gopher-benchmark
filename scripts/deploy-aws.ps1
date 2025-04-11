@@ -82,6 +82,39 @@ Write-Host "Lambda function built successfully!"
 Write-Section "Deploying Infrastructure with Terraform"
 Set-Location "$rootDir\deployments\terraform"
 
+Write-Section "SSH Key Configuration"
+Write-Host "Do you want to configure SSH access to the ImmuDB EC2 instance?"
+Write-Host "This allows you to connect to the EC2 instance directly for troubleshooting."
+Write-Host "If you choose 'yes', provide the path to your public key file or paste the public key."
+Write-Host "If you choose 'no', SSH access will be disabled."
+$configureSSH = Read-Host "Configure SSH access? (yes/no)"
+
+$SSH_PUBLIC_KEY = ""
+if ($configureSSH -eq "yes") {
+    $keyInput = Read-Host "Enter the path to your public key file or paste the public key content"
+    
+    # Check if it's a file path
+    if (Test-Path $keyInput) {
+        $SSH_PUBLIC_KEY = Get-Content $keyInput -Raw
+        Write-Host "Using public key from file: $keyInput"
+    } else {
+        $SSH_PUBLIC_KEY = $keyInput
+        Write-Host "Using provided public key"
+    }
+    
+    # Validate the key format (basic validation)
+    if (-not ($SSH_PUBLIC_KEY -match "^ssh-rsa\s+\S+")) {
+        Write-WarningMessage "The provided public key doesn't appear to be in the correct format."
+        $proceed = Read-Host "Do you want to proceed anyway? (yes/no)"
+        if ($proceed -ne "yes") {
+            $SSH_PUBLIC_KEY = ""
+            Write-Host "SSH access will be disabled."
+        }
+    }
+} else {
+    Write-Host "SSH access will be disabled."
+}
+
 Write-Host "Initializing Terraform..."
 terraform init
 
@@ -90,14 +123,16 @@ terraform plan `
   -var="aws_region=$AWS_REGION" `
   -var="environment=$ENVIRONMENT" `
   -var="dynamodb_read_capacity=$DYNAMODB_READ_CAPACITY" `
-  -var="dynamodb_write_capacity=$DYNAMODB_WRITE_CAPACITY"
+  -var="dynamodb_write_capacity=$DYNAMODB_WRITE_CAPACITY" `
+  -var="ssh_public_key=$SSH_PUBLIC_KEY"
 
 Write-Host "Applying Terraform configuration..."
 terraform apply -auto-approve `
   -var="aws_region=$AWS_REGION" `
   -var="environment=$ENVIRONMENT" `
   -var="dynamodb_read_capacity=$DYNAMODB_READ_CAPACITY" `
-  -var="dynamodb_write_capacity=$DYNAMODB_WRITE_CAPACITY"
+  -var="dynamodb_write_capacity=$DYNAMODB_WRITE_CAPACITY" `
+  -var="ssh_public_key=$SSH_PUBLIC_KEY"
 
 if (-not $?) {
     Write-ErrorAndExit "Terraform apply failed"
@@ -174,6 +209,28 @@ if ($MAIN_FUNCTION) {
 
 Write-Host "Function URLs saved to .env file"
 
+# Get ImmuDB instance details
+Write-Section "ImmuDB Instance Information"
+
+try {
+    $IMMUDB_IP = terraform output -raw immudb_instance_ip
+    if ($IMMUDB_IP) {
+        Add-Content -Path "..\..\\.env" -Value "IMMUDB_ADDRESS=$IMMUDB_IP"
+        Add-Content -Path "..\..\\.env" -Value "IMMUDB_PORT=3322"
+        Add-Content -Path "..\..\\.env" -Value "IMMUDB_DATABASE=benchmark"
+        Add-Content -Path "..\..\\.env" -Value "IMMUDB_USERNAME=immudb"
+        Add-Content -Path "..\..\\.env" -Value "IMMUDB_PASSWORD=immudb"
+        Write-Host "ImmuDB instance: $IMMUDB_IP"
+        Write-Host "ImmuDB connection string: immudb://$IMMUDB_IP:3322"
+        Write-Host "ImmuDB credentials: username=immudb, password=immudb"
+        Write-Host "ImmuDB database: benchmark"
+    } else {
+        Write-Warning "ImmuDB instance IP not found in Terraform output"
+    }
+} catch {
+    Write-Warning "Failed to get ImmuDB instance details: $_"
+}
+
 # All done!
 Write-Section "Deployment Complete"
 Write-Host "The Lambda Gopher Benchmark platform has been successfully deployed to AWS!"
@@ -181,6 +238,9 @@ Write-Host "To run benchmarks, use:"
 Write-Host "  # Load environment variables (PowerShell):"
 Write-Host "  Get-Content .env | ForEach-Object { if (`$_ -match '(.+)=(.+)') { `$env:`$matches[1] = `$matches[2] } }"
 Write-Host "  go run cmd/runner/main.go --config configs/comparison_benchmark.json --lambda-endpoint `$env:LAMBDA_ENDPOINT --output results"
+Write-Host ""
+Write-Host "ImmuDB is deployed on a t2.micro EC2 instance at $IMMUDB_IP"
+Write-Host "You can connect to it using the credentials in the .env file"
 Write-Host ""
 Write-Host "To clean up resources when you're done:"
 Write-Host "  cd deployments/terraform; terraform destroy"

@@ -1,0 +1,53 @@
+# Go build artifacts
+bin/
+bootstrap
+*.o
+*.a
+*.so
+*.test
+*.exe
+*.dll
+*.dylib
+
+# Lambda deployment packages
+*.zip
+lambda-function.zip
+
+# Terraform files
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+*.tfvars
+.terraform.lock.hcl
+terraform.zip
+
+# AWS local files
+.env
+.aws/
+AWSCLIV2.msi
+
+# Dependency directories
+/vendor/
+node_modules/
+
+# Test and result files
+/test_visualizations/
+/results/
+/visualizations/
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~ 

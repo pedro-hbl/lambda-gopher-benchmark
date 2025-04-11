@@ -109,112 +109,127 @@ docker exec -it immudb-local immuclient database create benchmarkdb
 
 ## AWS Deployment
 
-### Automated Deployment (Recommended)
+### AWS Architecture
 
-The Lambda Gopher Benchmark platform includes a deployment script that automates the entire AWS deployment process:
+The Lambda Gopher Benchmark platform on AWS consists of the following components:
+
+1. **Lambda Functions**: A set of Lambda functions for executing benchmark operations against different databases with varying memory configurations
+2. **DynamoDB**: A DynamoDB table for storing transaction data
+3. **Timestream**: A Timestream database for time-series data
+4. **EC2 Instance**: A t2.micro EC2 instance running ImmuDB
+5. **S3 Bucket**: For storing Lambda function code
+6. **CloudWatch**: For monitoring and logging
+
+The architecture ensures that all three database types (DynamoDB, Timestream, and ImmuDB) are properly deployed and accessible from the Lambda functions.
+
+### Complete AWS Deployment
+
+The deployment process is fully automated using Terraform and deployment scripts. To deploy the complete benchmark platform:
+
+1. **Prerequisites**:
+   - AWS CLI configured with appropriate permissions
+   - Terraform installed
+   - Go 1.21 or higher installed
+
+2. **Deployment Steps**:
+
+   ```powershell
+   # On Windows:
+   .\scripts\deploy-aws.ps1
+   
+   # On Linux/macOS:
+   ./scripts/deploy-aws.sh
+   ```
+
+   This script will:
+   - Build the Lambda function
+   - Deploy all AWS resources using Terraform
+   - Upload the Lambda function code to S3
+   - Update Lambda functions with the latest code
+   - Configure Lambda function URLs
+   - Set up an EC2 instance with ImmuDB
+   - Create a `.env` file with all the connection details
+
+3. **Terraform Resources Created**:
+   - IAM roles and policies
+   - Lambda functions for each database and operation type
+   - DynamoDB table with GSI for queries
+   - Timestream database and table
+   - S3 bucket for Lambda function code
+   - EC2 instance for ImmuDB
+   - VPC, subnet, security groups for ImmuDB
+   - CloudWatch dashboards and alarms
+
+### ImmuDB on EC2
+
+The ImmuDB database runs on a t2.micro EC2 instance, which is suitable for testing purposes and is eligible for the AWS free tier. The EC2 instance:
+
+- Runs Amazon Linux 2 AMI
+- Has ImmuDB installed and configured during instance startup
+- Opens necessary ports for ImmuDB access (3322 for API, 9497 for metrics)
+- Creates a benchmark database automatically
+- Is publicly accessible with default credentials (immudb/immudb)
+
+#### SSH Access to ImmuDB Instance
+
+During deployment, you'll be asked if you want to configure SSH access to the ImmuDB EC2 instance. This is optional but can be useful for troubleshooting:
+
+- If you choose "yes", you'll need to provide your SSH public key (either as a file path or by pasting the content)
+- If you choose "no", SSH access will be disabled for the instance
+- The key pair is specific to your deployment and won't affect other users
+
+To connect to the instance when SSH access is enabled:
 
 ```bash
-# Make the script executable (Linux/macOS)
-chmod +x scripts/deploy-aws.sh
-
-# Run the deployment script
-./scripts/deploy-aws.sh
+# Using the public IP from the .env file
+ssh -i /path/to/your/private/key ec2-user@$(grep IMMUDB_ADDRESS .env | cut -d= -f2)
 ```
 
-For Windows PowerShell users:
+For Windows PowerShell:
 ```powershell
-# Run the deployment script
-.\scripts\deploy-aws.ps1
+$immudbIp = (Get-Content .env | Where-Object { $_ -match "IMMUDB_ADDRESS=" }) -replace "IMMUDB_ADDRESS=", ""
+ssh -i C:\path\to\your\private\key ec2-user@$immudbIp
 ```
 
-The deployment script will:
-1. Check prerequisites
-2. Build the Lambda function
-3. Deploy infrastructure with Terraform
-4. Upload the Lambda function to S3
-5. Configure environment variables
+### Running Benchmarks on AWS
 
-### Manual Deployment
+After deploying the platform to AWS, the deployment script will create a `.env` file with all necessary connection details. To run a benchmark:
 
-If you prefer to deploy manually, follow these steps:
+1. **Load environment variables**:
 
-#### 1. Build the Lambda Function
+   ```powershell
+   # PowerShell
+   Get-Content .env | ForEach-Object { if ($_ -match '(.+)=(.+)') { $env:$matches[1] = $matches[2] } }
+   
+   # Bash
+   source .env
+   ```
 
-```bash
-# Build the Lambda function for Linux
-GOOS=linux GOARCH=amd64 go build -o bootstrap cmd/benchmark/main.go
+2. **Run the comparison benchmark**:
 
-# Create the deployment package
-zip lambda-function.zip bootstrap
+   ```
+   go run cmd/runner/main.go --config configs/comparison_benchmark.json --lambda-endpoint $env:LAMBDA_ENDPOINT --output results/aws
+   ```
+
+3. **Visualize the results**:
+
+   ```
+   go run cmd/visualizer/main.go --input results/aws --output visualizations/aws
+   ```
+
+### Resource Cleanup
+
+When done with benchmarking, clean up all AWS resources to avoid unnecessary charges:
+
+```powershell
+# On Windows:
+.\scripts\destroy-aws-resources.ps1
+
+# On Linux/macOS:
+./scripts/destroy-aws-resources.sh
 ```
 
-#### 2. Deploy AWS Infrastructure with Terraform
-
-```bash
-cd deployments/terraform
-
-# Initialize Terraform
-terraform init
-
-# Plan the deployment
-terraform plan \
-  -var="aws_region=us-east-1" \
-  -var="environment=prod" \
-  -var="dynamodb_read_capacity=50" \
-  -var="dynamodb_write_capacity=50"
-
-# Apply the configuration
-terraform apply \
-  -auto-approve \
-  -var="aws_region=us-east-1" \
-  -var="environment=prod" \
-  -var="dynamodb_read_capacity=50" \
-  -var="dynamodb_write_capacity=50"
-
-# Get the S3 bucket name
-BUCKET_NAME=$(terraform output -raw lambda_bucket_name)
-```
-
-#### 3. Upload Lambda Function to S3
-
-```bash
-aws s3 cp ../lambda-function.zip "s3://${BUCKET_NAME}/lambda/lambda-function.zip"
-```
-
-#### 4. Update Lambda Functions
-
-```bash
-# Update all Lambda functions
-for func in $(terraform output -json lambda_function_names | jq -r 'keys[]'); do
-  aws lambda update-function-code \
-    --function-name "lambda-gopher-benchmark-${func}" \
-    --s3-bucket "${BUCKET_NAME}" \
-    --s3-key "lambda/lambda-function.zip" \
-    --publish
-done
-```
-
-#### 5. Collect Lambda Function URLs
-
-Create a `.env` file with function URLs:
-
-```bash
-# Create .env file
-echo "# Lambda Function URLs" > .env
-
-# Get URLs for each function
-for func in $(terraform output -json lambda_function_names | jq -r 'keys[]'); do
-  FUNCTION_NAME="lambda-gopher-benchmark-${func}"
-  URL=$(aws lambda get-function-url-config --function-name "${FUNCTION_NAME}" --query 'FunctionUrl' --output text)
-  
-  echo "${func^^}_FUNCTION_URL=${URL}" >> .env
-done
-
-# Add the main Lambda endpoint
-MAIN_FUNCTION=$(terraform output -raw main_lambda_function_name)
-MAIN_URL=$(aws lambda get-function-url-config --function-name "${MAIN_FUNCTION}" --query 'FunctionUrl' --output text)
-echo "LAMBDA_ENDPOINT=${MAIN_URL}" >> .env
-```
+This script will use Terraform to destroy all created resources, and perform additional cleanup for any resources that might not have been properly removed.
 
 ## Running Benchmarks
 
@@ -355,130 +370,3 @@ The platform includes sample visualizations that you can run:
 
 1. **Connection Timeout**:
    - Error: `context deadline exceeded`
-   - Solution: Check your Lambda function URL and network connectivity.
-
-2. **Invalid Configuration**:
-   - Error: `invalid database configuration`
-   - Solution: Verify your benchmark configuration file for correct parameters.
-
-3. **Missing Environment Variables**:
-   - Error: `LAMBDA_ENDPOINT not set`
-   - Solution: Ensure you've sourced the `.env` file created during deployment.
-
-### Logs and Diagnostics
-
-#### Viewing Lambda Logs
-
-```bash
-# Get Lambda log group name
-LOG_GROUP_NAME="/aws/lambda/lambda-gopher-benchmark-dynamodb"
-
-# View recent logs
-aws logs get-log-events \
-  --log-group-name "${LOG_GROUP_NAME}" \
-  --log-stream-name "$(aws logs describe-log-streams --log-group-name ${LOG_GROUP_NAME} --order-by LastEventTime --descending --limit 1 --query 'logStreams[0].logStreamName' --output text)" \
-  --limit 100
-```
-
-#### Enabling Debug Logging
-
-For more detailed logs, run the benchmark with the `--verbose` flag:
-
-```bash
-go run cmd/runner/main.go \
-  --config configs/comparison_benchmark.json \
-  --lambda-endpoint ${LAMBDA_ENDPOINT} \
-  --output results \
-  --verbose
-```
-
-## Advanced Configurations
-
-### Customizing Terraform Variables
-
-Create a `terraform.tfvars` file in the `deployments/terraform` directory:
-
-```hcl
-aws_region             = "eu-west-1"
-environment            = "staging"
-dynamodb_read_capacity = 100
-dynamodb_write_capacity = 100
-```
-
-### Configuring VPC and Subnets
-
-Edit `deployments/terraform/variables.tf` to customize VPC settings:
-
-```hcl
-variable "lambda_vpc_enabled" {
-  description = "Whether to deploy the Lambda function in a VPC"
-  type        = bool
-  default     = true
-}
-
-variable "lambda_vpc_subnet_ids" {
-  description = "Subnet IDs for Lambda VPC configuration"
-  type        = list(string)
-  default     = ["subnet-abc123", "subnet-def456"]
-}
-```
-
-### Using a Custom IAM Role
-
-To use a custom IAM role for Lambda functions:
-
-1. Create the role in AWS IAM with appropriate permissions
-2. Edit `terraform.tfvars`:
-   ```hcl
-   lambda_role_name = "custom-lambda-role-name"
-   ```
-
-### Multi-Region Deployment
-
-For multi-region benchmarking, deploy to multiple regions and update the configuration:
-
-1. Deploy to each region separately
-2. Create a custom benchmark configuration with appropriate region settings:
-   ```json
-   {
-     "tests": [
-       {
-         "name": "us-east-1-write-test",
-         "database": {
-           "type": "dynamodb",
-           "region": "us-east-1",
-           "table": "LambdaGopherBenchmark"
-         },
-         "operation": {
-           "type": "write",
-           ...
-         }
-       },
-       {
-         "name": "eu-west-1-write-test",
-         "database": {
-           "type": "dynamodb",
-           "region": "eu-west-1",
-           "table": "LambdaGopherBenchmark"
-         },
-         "operation": {
-           "type": "write",
-           ...
-         }
-       }
-     ]
-   }
-   ```
-
-## Cleaning Up Resources
-
-To avoid incurring AWS charges, clean up resources when finished:
-
-```bash
-cd deployments/terraform
-terraform destroy -auto-approve \
-  -var="aws_region=us-east-1" \
-  -var="environment=prod"
-```
-
-This command will remove all AWS resources created by the deployment, including Lambda functions, IAM roles, DynamoDB tables, and S3 buckets. 

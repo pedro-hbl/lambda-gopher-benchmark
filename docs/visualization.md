@@ -335,3 +335,173 @@ If the generated charts have low quality or are difficult to read:
 1. Try increasing the dimensions with `--width` and `--height` flags
 2. Use a different format like SVG for better scalability
 3. Reduce the number of data points being visualized by filtering or grouping 
+
+# Visualization Guide
+
+The Lambda Gopher Benchmark platform includes a powerful visualizer component that helps you analyze and compare benchmark results across different databases and operations.
+
+## Overview
+
+The visualizer reads benchmark result files and generates various outputs:
+
+- **Text Reports**: Tables showing key metrics in console output
+- **CSV Files**: Detailed results for further analysis in spreadsheets
+- **Charts**: Visual comparison of database performance
+- **Markdown Reports**: Easy-to-share documentation of results
+
+## Running the Visualizer
+
+The visualizer is a command-line tool that can be run as follows:
+
+```bash
+go run cmd/visualizer/main.go --input <input_path> --output <output_directory>
+```
+
+### Command Line Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--input` | Path to benchmark results directory or specific result file | - |
+| `--output` | Directory to store visualization outputs | "visualizations" |
+| `--format` | Output format (text, csv, chart, all) | "all" |
+| `--group-by` | Group results by database or operation | "database" |
+| `--metric` | Metric to visualize (throughput, latency) | "throughput" |
+| `--databases` | Comma-separated list of databases to include | All |
+| `--operations` | Comma-separated list of operations to include | All |
+| `--start-date` | Start date filter (YYYY-MM-DD) | - |
+| `--end-date` | End date filter (YYYY-MM-DD) | - |
+
+## Visualization Formats
+
+### Text Reports
+
+Text reports display a table with key metrics directly in the console and save them to text files:
+
+```
+| Database  | Operation | Avg Latency (ms) | Throughput (ops/s) |
+|-----------|-----------|------------------|-------------------|
+| DynamoDB  | Write     | 12.45            | 80.32             |
+| ImmuDB    | Write     | 8.76             | 114.15            |
+| Timestream| Write     | 15.32            | 65.27             |
+```
+
+The text reports are saved to the output directory as `summary_<groupBy>_<metricType>.txt`.
+
+### CSV Files
+
+CSV files provide detailed data for further analysis in spreadsheet applications. They include all available metrics and can be easily imported into tools like Excel or Google Sheets.
+
+The CSV file is saved as `benchmark_results.csv` in the output directory.
+
+### Charts
+
+The visualizer generates comparative bar charts showing performance metrics across different databases and operations:
+
+- **Database Comparison**: Shows how different databases perform for the same operation
+- **Operation Comparison**: Shows how different operations perform on the same database
+
+Charts are saved as PNG files in the output directory, with filenames like `database_comparison_chart.png` and `operation_comparison_chart.png`.
+
+## Filtering and Comparing Results
+
+The visualizer provides several ways to filter and compare benchmark results:
+
+### Database and Operation Filtering
+
+```bash
+# Compare only DynamoDB and ImmuDB
+go run cmd/visualizer/main.go --input results --output visualizations --databases "dynamodb,immudb"
+
+# Compare only read and write operations
+go run cmd/visualizer/main.go --input results --output visualizations --operations "read,write"
+```
+
+### Metric Selection
+
+```bash
+# Focus on latency metrics
+go run cmd/visualizer/main.go --input results --output visualizations --metric "latency"
+
+# Focus on throughput metrics
+go run cmd/visualizer/main.go --input results --output visualizations --metric "throughput"
+```
+
+### Grouping Results
+
+```bash
+# Group results by database type
+go run cmd/visualizer/main.go --input results --output visualizations --group-by "database"
+
+# Group results by operation type
+go run cmd/visualizer/main.go --input results --output visualizations --group-by "operation"
+```
+
+### Date Filtering
+
+```bash
+# Filter results from a specific date range
+go run cmd/visualizer/main.go --input results --output visualizations --start-date "2024-06-01" --end-date "2024-06-15"
+```
+
+## Visualization Best Practices
+
+1. **Use standardized metrics**: Make sure all benchmarks use the same configuration parameters for fair comparison
+2. **Include all database types**: Always include all databases in your comparison for a comprehensive view
+3. **Focus on relevant operations**: Filter operations to match your application's actual usage patterns
+4. **Generate all formats**: Use `--format all` to generate all visualization types for comprehensive analysis
+5. **Use consistent naming**: Use descriptive test names in your benchmark configurations for clearer visualization
+
+## Examples
+
+### Comparing Database Write Performance
+
+```bash
+go run cmd/visualizer/main.go --input results --output visualizations --operations "write" --metric "throughput" --group-by "database"
+```
+
+### Comparing DynamoDB Operations
+
+```bash
+go run cmd/visualizer/main.go --input results --output visualizations --databases "dynamodb" --group-by "operation"
+```
+
+### Generating a Report for a Presentation
+
+```bash
+# Generate charts and text reports for a presentation
+go run cmd/visualizer/main.go --input results --output presentation-data --format "chart,text" --group-by "database"
+```
+
+## Troubleshooting
+
+### Missing Results
+
+If your visualization is missing expected results:
+
+1. Check that the benchmark completed successfully and generated result files
+2. Verify that the result files are in the directory specified by `--input`
+3. Check your filter parameters (databases, operations, dates) to ensure they match your result data
+
+### Chart Generation Issues
+
+If charts aren't generating correctly:
+
+1. Ensure you have the required Go packages installed: `go get github.com/wcharczuk/go-chart/v2`
+2. Check that your output directory is writable
+3. Verify that your result files contain valid data with numeric metrics
+
+### Custom Visualization
+
+To create custom visualizations, you can:
+
+1. Use the CSV output with your preferred visualization tool
+2. Modify the `cmd/visualizer/main.go` code to create custom charts or output formats
+
+## Next Steps
+
+After visualizing your results:
+
+1. **Analyze performance patterns**: Look for trends across different databases and operations
+2. **Identify bottlenecks**: Focus on operations with the highest latency or lowest throughput
+3. **Refine benchmarks**: Update your benchmark configurations based on initial findings
+4. **Iterate**: Run additional benchmarks with adjusted parameters to explore performance further 

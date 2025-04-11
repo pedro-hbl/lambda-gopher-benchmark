@@ -1,0 +1,4 @@
+Database,batch_write,query,read,write
+DynamoDB,1892.34,189.45,350.05,245.20
+ImmuDB,2541.09,201.77,478.41,342.15
+Timestream,N/A,N/A,418.89,302.50

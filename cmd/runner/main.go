@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -263,9 +264,23 @@ func runBenchmarkFromConfigFile(filePath string) {
 		log.Fatalf("Failed to read configuration file: %v", err)
 	}
 
+	// Replace environment variables in the configuration
+	configStr := string(data)
+	envVarPattern := regexp.MustCompile(`\${([A-Za-z0-9_]+)}`)
+	configStr = envVarPattern.ReplaceAllStringFunc(configStr, func(match string) string {
+		// Extract environment variable name (without ${ and })
+		envVarName := match[2 : len(match)-1]
+		envValue := os.Getenv(envVarName)
+		if envValue == "" {
+			log.Printf("Warning: Environment variable %s not set", envVarName)
+			return match // Keep the original placeholder if env var is not set
+		}
+		return envValue
+	})
+
 	// Parse the configuration
 	var benchmarkDef BenchmarkDefinition
-	if err := json.Unmarshal(data, &benchmarkDef); err != nil {
+	if err := json.Unmarshal([]byte(configStr), &benchmarkDef); err != nil {
 		log.Fatalf("Failed to parse configuration file: %v", err)
 	}
 
@@ -333,6 +348,7 @@ func runBenchmarkFromConfigFile(filePath string) {
 	log.Printf("Completed all tests for benchmark: %s", benchmarkDef.ID)
 }
 
+// TODO: This function is not currently used directly but kept for future implementation of standalone benchmark runs
 func runBenchmark(dbType, opType string, customParams map[string]interface{}) {
 	// Get database-specific endpoint if available
 	endpoint := *lambdaEndpoint

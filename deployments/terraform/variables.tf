@@ -4,6 +4,12 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "ssh_public_key" {
+  description = "SSH public key for EC2 instance access (if empty, SSH access will be disabled)"
+  type        = string
+  default     = ""
+}
+
 variable "environment" {
   description = "Environment name for resource naming and tagging"
   type        = string
@@ -155,5 +161,11 @@ variable "nat_gateway_enabled" {
 variable "lambda_container_images" {
   description = "Whether to use container images for Lambda functions"
   type        = bool
-  default     = true
+  default     = false
+}
+
+variable "ec2_ami_id" {
+  description = "AMI ID for the ImmuDB EC2 instance"
+  type        = string
+  default     = "ami-0f34c5ae932e6f0e4" # Amazon Linux 2 AMI in us-east-1, update for other regions
 } 
